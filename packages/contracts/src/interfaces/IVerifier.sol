@@ -14,13 +14,24 @@ struct EmailProof {
 
 interface IVerifier {
 
+    // Function to add a whitelisted minter address
+    function addWhitelistedMinter(address _minter) external;
+
+    // Function to remove a whitelisted minter address
+    function removeWhitelistedMinter(address _minter) external;
+
+    // Function to add a token ID to the list of redeemable tokens
+    function addRedeemableTokenId(uint256 tokenId) external;
+
     /**
      * @notice Verifies the provided email proof.
      * @param proof The email proof to be verified.
-     * @return bool indicating whether the proof is valid.
+     * @param content The teleport NFT content to be redeemed
+     * @return bool indicating whether the proof is valid and if so the redeem is successful.
      */    
     function verifyEmailProof(
-        EmailProof memory proof
+        EmailProof memory proof,
+        string memory content
     ) external returns (bool);
 
     /**

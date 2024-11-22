@@ -1,4 +1,8 @@
-# ZK-JWT
+# Teleport x ZK-JWT
+
+What happens when you put Teleport.best NFTs together with zk-JWTs? You get Blind but natively on Twitter.
+
+## ZK-JWT
 
 ZK-JWT is an application that allows for anonymous verification of JWT signatures while masking specific claims. It enables verification of JWTs from specific issuers or subsets of domains, as well as verification based on specific claims in the payload. Our core SDK comes with libraries to assist with circuit generation and utility templates for building zero-knowledge JWT applications.
 

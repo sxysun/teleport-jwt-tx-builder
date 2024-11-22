@@ -8,6 +8,7 @@ import {strings} from "solidity-stringutils/src/strings.sol";
 import {IVerifier, EmailProof} from "../interfaces/IVerifier.sol";
 import {HexUtils} from "./HexUtils.sol";
 import {StringToArrayUtils} from "./StringToArrayUtils.sol";
+import {NFT} from "../teleport/NFT.sol";
 
 contract JwtVerifier is IVerifier, OwnableUpgradeable, UUPSUpgradeable {
     using strings for *;
@@ -15,6 +16,7 @@ contract JwtVerifier is IVerifier, OwnableUpgradeable, UUPSUpgradeable {
     using StringToArrayUtils for string;
 
     IJwtGroth16Verifier groth16Verifier;
+    NFT public nftContract;
 
     uint256 public constant ISS_FIELDS = 2;
     uint256 public constant ISS_BYTES = 32;
@@ -23,21 +25,51 @@ contract JwtVerifier is IVerifier, OwnableUpgradeable, UUPSUpgradeable {
     uint256 public constant AZP_FIELDS = 3;
     uint256 public constant AZP_BYTES = 72;
 
+    uint256[] public redeemableTokenIds;
+
+    mapping(address => bool) public whitelistedMinters;
+
     constructor() {}
 
     /// @notice Initialize the contract with the initial owner and deploy Groth16Verifier
     /// @param _initialOwner The address of the initial owner
     function initialize(
         address _initialOwner,
-        address _groth16Verifier
+        address _groth16Verifier,
+        address _nftContractAddress
     ) public initializer {
         __Ownable_init(_initialOwner);
         groth16Verifier = IJwtGroth16Verifier(_groth16Verifier);
+        nftContract = NFT(_nftContractAddress);
     }
 
-    function verifyEmailProof(
-        EmailProof memory proof
-    ) public view returns (bool) {
+    function addWhitelistedMinter(address _minter) public onlyOwner {
+        whitelistedMinters[_minter] = true;
+    }
+
+    function removeWhitelistedMinter(address _minter) public onlyOwner {
+        whitelistedMinters[_minter] = false;
+    }
+
+    function addRedeemableTokenId(uint256 tokenId) public {
+        require(owner() == msg.sender || whitelistedMinters[msg.sender], "Caller is not owner or whitelisted minter");
+        redeemableTokenIds.push(tokenId);
+    }
+
+    function removeRedeemableTokenId(uint256 tokenId) internal {
+        for (uint256 i = 0; i < redeemableTokenIds.length; i++) {
+            if (redeemableTokenIds[i] == tokenId) {
+                redeemableTokenIds[i] = redeemableTokenIds[redeemableTokenIds.length - 1];
+                redeemableTokenIds.pop();
+                break;
+            }
+        }
+    }
+
+    function verifyEmailProofAndRedeem(
+        EmailProof memory proof,
+        string memory content
+    ) public returns (bool) {
         (
             uint256[2] memory pA,
             uint256[2][2] memory pB,
@@ -89,7 +121,19 @@ contract JwtVerifier is IVerifier, OwnableUpgradeable, UUPSUpgradeable {
             ? 1
             : 0;
 
-        return groth16Verifier.verifyProof(pA, pB, pC, pubSignals);
+
+        bool verifySuccess = groth16Verifier.verifyProof(pA, pB, pC, pubSignals);
+        if (verifySuccess) {
+            if (redeemableTokenIds.length > 0) {
+                uint256 tokenId = redeemableTokenIds[0];
+                nftContract.redeem(tokenId, content, NFT.TokenType.TWEET);
+                removeRedeemableTokenId(tokenId);
+                return true;
+            } else {
+                return false;
+            }
+        }
+        return false;
     }
 
     function _packBytes2Fields(
